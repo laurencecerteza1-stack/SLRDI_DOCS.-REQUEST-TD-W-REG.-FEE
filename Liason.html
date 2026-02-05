@@ -87,11 +87,11 @@
                 
                 const raNumber   = row[2];          
                 const buyerName  = row[3];          
-                const orNumber   = row[19] || "---"; 
-                const yrCovered  = row[20] || "---"; 
-                const rawAmount  = String(row[21]).replace(/[^0-9.-]+/g,"");
+                const orNumber   = row[20] || "---"; 
+                const yrCovered  = row[21] || "---"; 
+                const rawAmount  = String(row[22]).replace(/[^0-9.-]+/g,"");
                 const orAmount   = parseFloat(rawAmount) || 0; 
-                const orDate     = row[22] || "---"; 
+                const orDate     = row[23] || "---"; 
                 const sheetYear  = row[row.length - 1]; 
                 const remarks    = row[16] || "---"; // Idinagdag (Row 16)
 
@@ -159,3 +159,4 @@
 </script>
 </body>
 </html>
+
