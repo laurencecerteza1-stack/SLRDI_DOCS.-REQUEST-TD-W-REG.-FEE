@@ -16,6 +16,18 @@
         th { background: #f1f3f4; text-align: left; padding: 10px; border-bottom: 2px solid #ddd; }
         td { padding: 8px; border-bottom: 1px solid #eee; }
         #debug { color: #888; font-size: 10px; text-align: center; }
+        #loadMoreBtn {
+            background-color: #f8f9fa; /* Light gray background */
+            color: #3c4043;            /* Dark text para madaling basahin */
+            border: 1px solid #dadce0; /* Subtle border katulad ng Google apps */
+            padding: 10px 24px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 4px;        /* Swabeng kanto */
+            cursor: pointer;
+            transition: all 0.2s ease; /* Para sa smooth na hover effect */
+            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+            }
     </style>
 </head>
 <body>
@@ -27,7 +39,9 @@
         <button class="btn-green" onclick="loadData()">🔄 Refresh</button>
         <button class="btn-red" onclick="downloadPDF()">📄 PDF</button>
     </div>
-
+    <div class="text-center my-3">
+        <button id="loadMoreBtn" class="btn btn-secondary" onclick="loadMore()" style="display:none;">Show More Results...</button>
+    </div>
     <div class="stats">
         <div><label>Records Found:</label><div id="count" style="font-size:18px; font-weight:bold;">0</div></div>
         <div><label>Total Amount:</label><div id="total" style="font-size:18px; font-weight:bold; color:#d93025;">₱0.00</div></div>
@@ -52,69 +66,113 @@
 
 <script>
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyu5YHdYQOmU-TZ9M645ObWCcU9jQTLFu9QVo9pVlyFz-f2uP4WQ7hVpXBVUyKlo7o7xg/exec"; 
-    let masterData = [];
-
+    let masterData = [];    
     window.onload = loadData;
 
-    function loadData() {
-        document.getElementById('debug').innerText = "Loading data from Google...";
-        fetch(WEB_APP_URL)
-            .then(res => res.json())
-            .then(data => {
-                masterData = data;
-                document.getElementById('debug').innerText = "Data loaded: " + data.length + " rows.";
-                processSearch();
-            })
-            .catch(err => {
-                document.getElementById('debug').innerText = "Error loading data.";
-            });
-    }
+     let searchableIndex = []; 
 
-    function processSearch() {
-        const query = document.getElementById('searchInput').value.toLowerCase();
-        const tbody = document.getElementById('tableBody');
-        tbody.innerHTML = "";
-        
-        let totalOrAmount = 0;
-        let count = 0;
-
-        masterData.forEach(row => {
-            const raValue = String(row[2]).toLowerCase();   
-            const buyerValue = String(row[3]).toLowerCase(); 
-
-            if ((raValue.includes(query) || buyerValue.includes(query)) && query !== "") {
-                count++;
-                
-                const raNumber   = row[2];          
-                const buyerName  = row[3];          
-                const orNumber   = row[19] || "---"; 
-                const yrCovered  = row[20] || "---"; 
-                const rawAmount  = String(row[21]).replace(/[^0-9.-]+/g,"");
-                const orAmount   = parseFloat(rawAmount) || 0; 
-                const orDate     = row[22] || "---"; 
-                const sheetYear  = row[row.length - 1]; 
-                const remarks    = row[16] || "---"; // Idinagdag (Row 16)
-
-                totalOrAmount += orAmount;
-
-                tbody.innerHTML += `
-                    <tr>
-                        <td>${raNumber}</td>
-                        <td>${buyerName}</td>
-                        <td>${orNumber}</td>
-                        <td>${yrCovered}</td>
-                        <td style="text-align: right; font-weight:bold; color: #d93025;">₱${orAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                        <td>${orDate}</td>
-                        <td>${sheetYear}</td>
-                        <td>${remarks}</td>
-                    </tr>`;
-            }
+function loadData() {
+    document.getElementById('debug').innerText = "⚡ Fetching 17k rows...";
+    fetch(WEB_APP_URL)
+        .then(res => res.json())
+        .then(data => {
+            masterData = data;
+            // PRE-INDEXING: Isang beses lang gagawin ang toLowerCase sa lahat
+            searchableIndex = data.map(row => ({
+                // Column 2 (RA) at Column 3 (Buyer)
+                key: `${row[2]} ${row[3]}`.toLowerCase(),
+                original: row
+            }));
+            document.getElementById('debug').innerText = "Ready: " + data.length + " rows.";
+            processSearch();
+        })
+        .catch(err => {
+            document.getElementById('debug').innerText = "Error loading data.";
         });
-
-        document.getElementById('count').innerText = count;
-        document.getElementById('total').innerText = "\u20B1" + totalOrAmount.toLocaleString(undefined, {minimumFractionDigits: 2});
+}
+    function processSearch() {
+    const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    const tbody = document.getElementById('tableBody');
+    const loadMoreBtn = document.getElementById('loadMoreBtn');
+    
+    // Kung walang search, linisin lahat
+    if (query === "") {
+        tbody.innerHTML = "";
+        document.getElementById('count').innerText = "0";
+        document.getElementById('total').innerText = "₱0.00";
+        loadMoreBtn.style.display = "none";
+        return;
     }
 
+    let totalOrAmount = 0;
+    let count = 0;
+    let rowsHtml = "";
+
+    // 1. SCANNING THROUGH 17k ROWS (Logic Only)
+    for (let i = 0; i < searchableIndex.length; i++) {
+        const item = searchableIndex[i];
+        if (item.key.includes(query)) {
+            count++;
+            
+            const rawAmount = String(item.original[21] || "0").replace(/[^0-9.-]+/g,"");
+            const orAmount = parseFloat(rawAmount) || 0;
+            totalOrAmount += orAmount;
+
+            // 2. RENDERING LIMIT (UI Only)
+            if (count <= currentLimit) {
+                const row = item.original;
+                rowsHtml += `<tr>
+                    <td>${row[2]}</td>
+                    <td>${row[3]}</td>
+                    <td>${row[19] || "---"}</td>
+                    <td>${row[20] || "---"}</td>
+                    <td style="text-align:right; font-weight:bold; color:#d93025;">
+                        ₱${orAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                    </td>
+                    <td>${row[22] || "---"}</td>
+                    <td>${row[row.length - 1] || ""}</td>
+                    <td>${row[16] || "---"}</td>
+                </tr>`;
+            }
+        }
+    }
+
+    // 3. APPLY TO DOM
+    tbody.innerHTML = rowsHtml;
+    document.getElementById('count').innerText = count;
+    document.getElementById('total').innerText = "₱" + totalOrAmount.toLocaleString(undefined, {minimumFractionDigits: 2});
+
+    // 4. BUTTON VISIBILITY LOGIC
+    // Lalabas lang ang button kung ang nahanap na matches ay mas marami sa kasalukuyang limit
+    if (count > currentLimit) {
+        loadMoreBtn.style.display = "inline-block";
+        loadMoreBtn.innerText = `Show More (Showing ${currentLimit} of ${count})`;
+    } else {
+        loadMoreBtn.style.display = "none";
+    }
+}
+
+let currentLimit = 100; // Simula sa 100 rows lang
+
+function loadMore() {
+    currentLimit += 100; // Dagdagan ng 100 kada click
+    processSearch();     // Patakbuhin ulit ang search
+}
+
+let timer;
+function debouncedSearch() {
+    clearTimeout(timer);
+    
+    // I-reset ang limit sa 100 tuwing may bagong search input
+    currentLimit = 100; 
+    
+    timer = setTimeout(processSearch, 300);
+}
+
+function updateSummaries(count, total) {
+    document.getElementById('count').innerText = count;
+    document.getElementById('total').innerText = "₱" + total.toLocaleString(undefined, {minimumFractionDigits: 2});
+}
     function downloadPDF() {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF('l', 'mm', 'a4'); // Landscape para kasya lahat ng columns
