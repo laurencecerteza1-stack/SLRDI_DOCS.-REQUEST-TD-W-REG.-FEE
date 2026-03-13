@@ -91,7 +91,7 @@
         
         // Isang beses lang i-compute ang search index para sa bilis
         searchableIndex = masterData.map(row => ({
-            key: (String(row[2]) + String(row[7]) + String(row[1])).toLowerCase(),
+            key: (String(row[2]) + String(row[8]) + String(row[1])).toLowerCase(),
             original: row
         }));
 
@@ -139,9 +139,9 @@ function processSearch() {
                     <tr>
                         <td>${row[0] || "---"}</td>
                         <td>${row[1] || "---"}</td>
-                        <td>${row[7] || "---"}</td>
-                        <td>${row[2] || "---"}</td>
                         <td>${row[8] || "---"}</td>
+                        <td>${row[2] || "---"}</td>
+                        <td>${row[3] || "---"}</td>
                         <td>${row[9] || "---"}</td>
                         <td>${row[10] || "---"}</td>
                     </tr>`;
