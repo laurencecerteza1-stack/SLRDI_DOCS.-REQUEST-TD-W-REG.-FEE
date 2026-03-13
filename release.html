@@ -16,6 +16,26 @@
         th { background: #f1f3f4; text-align: left; padding: 10px; border-bottom: 2px solid #ddd; }
         td { padding: 8px; border-bottom: 1px solid #eee; }
         #debug { color: #888; font-size: 10px; text-align: center; }
+        .load-more-container {
+    text-align: center;
+    padding: 20px;
+}
+
+#loadMoreBtn {
+    background-color: #1a73e8; /* Blue */
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    font-size: 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+#loadMoreBtn:hover {
+    background-color: #1557b0;
+}
     </style>
 </head>
 <body>
@@ -48,6 +68,11 @@
     </table>
     <div id="debug">System ready.</div>
 </div>
+<div class="load-more-container">
+    <button id="loadMoreBtn" onclick="loadMore()" style="display:none;">
+        Show More Results
+    </button>
+</div>
 
 <script>
     // Koneksyon sa iyong existing Google Sheet Web App
@@ -56,57 +81,99 @@
 
     window.onload = loadData;
 
-    function loadData() {
-        document.getElementById('debug').innerText = "Loading data from Google...";
-        fetch(WEB_APP_URL)
-            .then(res => res.json())
-            .then(data => {
-                masterData = data;
-                document.getElementById('debug').innerText = "Data loaded: " + data.length + " rows.";
-                processSearch();
-            })
-            .catch(err => {
-                document.getElementById('debug').innerText = "Error loading data.";
-            });
+    async function loadData() {
+    const debug = document.getElementById('debug');
+    debug.innerText = "Loading...";
+
+    try {
+        const response = await fetch(WEB_APP_URL);
+        masterData = await response.json();
+        
+        // Isang beses lang i-compute ang search index para sa bilis
+        searchableIndex = masterData.map(row => ({
+            key: (String(row[2]) + String(row[7]) + String(row[1])).toLowerCase(),
+            original: row
+        }));
+
+        debug.innerText = "Data loaded: " + masterData.length + " rows.";
+        processSearch();
+    } catch (err) {
+        debug.innerText = "❌ Error loading data.";
+        console.error(err);
+    }
+}
+
+    // Siguraduhing nasa labas ito
+let currentLimit = 100; 
+
+function processSearch() {
+    const queryInput = document.getElementById('searchInput');
+    const query = queryInput ? queryInput.value.toLowerCase().trim() : "";
+    const tbody = document.getElementById('tableBody');
+    const loadMoreBtn = document.getElementById('loadMoreBtn');
+    
+    if (!tbody) return; // Guard clause kung wala ang element
+    
+    // I-clear ang table bago mag-load ng bago
+    tbody.innerHTML = "";
+
+    if (query === "") {
+        document.getElementById('count').innerText = "0";
+        if (loadMoreBtn) loadMoreBtn.style.display = "none";
+        return;
     }
 
-    function processSearch() {
-    const query = document.getElementById('searchInput').value.toLowerCase();
-    const tbody = document.getElementById('tableBody');
-    tbody.innerHTML = "";
-    
     let count = 0;
+    let htmlBuffer = ""; // String buffer para sa bilis
 
-    masterData.forEach(row => {
-        // Mapping base sa iyong listahan
-        const dateReleased     = row[0] || "---"; 
-        const year             = row[1] || "---"; // Column 1
-        const buyerName        = row[2] || "---"; // Column 2
-        const raNumber         = row[7] || "---"; // Column 7
-        const transferredTitle  = row[8] || "---"; // Column 8
-        const originalTitle     = row[9] || "---"; // Column 9
-        const owner            = row[10] || "---"; // Column 10
-        const sheetSource      = row[row.length - 1]; 
-
-        // Search logic (Buyer, RA#, or Year)
-        const searchField = (String(buyerName) + String(raNumber) + String(year)).toLowerCase();
-
-        if (searchField.includes(query) && query !== "") {
+    for (let i = 0; i < searchableIndex.length; i++) {
+        const item = searchableIndex[i];
+        
+        if (item.key.includes(query)) {
             count++;
-            
-            tbody.innerHTML += `
-                <tr>
-                    <td>${dateReleased}</td>
-                    <td>${year}</td> <td>${raNumber}</td>
-                    <td>${buyerName}</td>
-                    <td>${transferredTitle}</td>
-                    <td>${originalTitle}</td>
-                    <td>${owner}</td>
-                </tr>`;
-        }
-    });
 
+            // Rendering Limit (UI Only)
+            if (count <= currentLimit) {
+                const row = item.original;
+                htmlBuffer += `
+                    <tr>
+                        <td>${row[0] || "---"}</td>
+                        <td>${row[1] || "---"}</td>
+                        <td>${row[7] || "---"}</td>
+                        <td>${row[2] || "---"}</td>
+                        <td>${row[8] || "---"}</td>
+                        <td>${row[9] || "---"}</td>
+                        <td>${row[10] || "---"}</td>
+                    </tr>`;
+            }
+        }
+    }
+
+    tbody.innerHTML = htmlBuffer;
     document.getElementById('count').innerText = count;
+
+    // Button Visibility
+    if (loadMoreBtn) {
+        if (count > currentLimit) {
+            loadMoreBtn.style.display = "inline-block";
+            loadMoreBtn.innerText = `Show More (Showing ${currentLimit} of ${count})`;
+        } else {
+            loadMoreBtn.style.display = "none";
+        }
+    }
+}
+
+// Function para sa button
+function loadMore() {
+    currentLimit += 150; // Dagdagan ang rows na ipapakita
+    processSearch();
+}
+
+// Debounce para hindi mag-freeze habang nagta-type
+function debouncedSearch() {
+    clearTimeout(timer);
+    currentLimit = 100; // Reset limit sa bagong search
+    timer = setTimeout(processSearch, 300);
 }
 
     function downloadPDF() {
